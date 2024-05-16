@@ -6,7 +6,7 @@ import os
 
 pg.init()
 
-debug = 1
+debug = 0
 '''重构时注意release版本的路径索引器，release版需要删掉quit()函数'''
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
@@ -63,11 +63,19 @@ class animation:
 class player(pg.sprite.Sprite):
     __normalized_x = 1
     __normalized_y = 0
-    __interval = 300
+
+    __interval = 200
     __timer = 0
     __txt_timer = font.render(f'{__timer}', True, (255, 255, 255))
+
     aim_point_color = (0, 191, 255)
     aim_point_radius = 3
+
+    hurt_timer = 0
+    hurt_interval = 60
+    health = 3
+    txt_health = font.render(f'{health}', True, (255, 255, 255))
+    txt_hurt_timer = font.render(f'{hurt_timer}', True, (255, 255, 255))
 
     def __init__(self):
         super(player, self).__init__()
@@ -183,8 +191,12 @@ class player(pg.sprite.Sprite):
         # (255, 215, 0)
         pg.draw.circle(screen, (255, 215, 0),
                        (self.pos_point_x, self.pos_point_y), 4, 4)
-        pg.draw.circle(screen, (255, 0, 0),
-                       (self.pos_point_x, self.pos_point_y), 4, 2)
+        if self.hurt_timer == 0:
+            pg.draw.circle(screen, (255, 0, 0),
+                           (self.pos_point_x, self.pos_point_y), 4, 2)
+        else:
+            pg.draw.circle(screen, (0, 0, 139),
+                           (self.pos_point_x, self.pos_point_y), 4, 2)
         if not self.__timer == 0:
             self.draw_timer()
         pg.draw.circle(screen, self.aim_point_color, (
@@ -201,6 +213,8 @@ class player(pg.sprite.Sprite):
                          (self.pos_point_x, self.pos_point_y),
                          (self.pos_point_x + self.__normalized_x * 50,
                           self.pos_point_y + self.__normalized_y * 50))
+            screen.blit(self.txt_health, (self.pos_x - 8, self.pos_y + 5))
+            screen.blit(self.txt_hurt_timer, (self.pos_x - 8, self.pos_y + 15))
 
     def generate_bullet(self):
         return Bullet(self.pos_point_x, self.pos_point_y, self.__normalized_x,
@@ -232,6 +246,11 @@ class player(pg.sprite.Sprite):
         self.__txt_timer = font.render(f'{self.__timer}', True,
                                        (255, 255, 255))
 
+        if self.hurt_timer > 0:
+            self.hurt_timer -= 1
+            self.txt_hurt_timer = font.render(f'{self.hurt_timer}', True,
+                                              (255, 255, 255))
+
     def update(self):
         self.update_timer()
         self.move()
@@ -242,9 +261,17 @@ class player(pg.sprite.Sprite):
             return not self.__alive
 
     def hurt(self):
-        if debug and self.__alive:
-            print('dead')
-        self.__alive = False
+        if self.health > 0 and self.hurt_timer == 0:
+            if debug:
+                print('hurt')
+            self.health -= 1
+            self.hurt_timer = self.hurt_interval
+
+        self.txt_health = font.render(f'{self.health}', True, (255, 255, 255))
+        if self.health == 0:
+            if debug:
+                print('dead')
+            self.__alive = False
 
 
 class Servant(pg.sprite.Sprite):
@@ -256,7 +283,8 @@ class Servant(pg.sprite.Sprite):
 
     def __init__(self, randint: int, speed: float, FRA_W: int, FRA_H: int,
                  SHA_W: int, delta_point_y: int, delta_rect: int,
-                 delta_sha: int, anim_L: animation, anim_R: animation):
+                 delta_sha: int, anim_L: animation, anim_R: animation,
+                 health: int):
         super(Servant, self).__init__()
 
         self.FRAME_WIDTH = FRA_W
@@ -294,6 +322,8 @@ class Servant(pg.sprite.Sprite):
 
         self.__txt_speed = font.render(f'{self._speed:.2f}', True,
                                        (255, 255, 255))
+
+        self.health = health
 
     def move(self, player: player):
 
@@ -350,7 +380,9 @@ class Servant(pg.sprite.Sprite):
         return self.rect.collidepoint(player.pos_point_x, player.pos_point_y)
 
     def hurt(self):
-        self.__alive = False
+        self.health -= 1
+        if self.health == 0:
+            self.__alive = False
 
     def CheckAlive(self):
         return self.__alive
@@ -361,7 +393,7 @@ class Servant(pg.sprite.Sprite):
         self.draw()
         if self.CheckPlayerCollision(player):
             player.hurt()
-            self.hurt()
+            self.kill()
         if not self.CheckAlive():
             self.kill()
 
@@ -376,12 +408,12 @@ class Rider(Servant):
     __delta_rect = 10
     __delta_sha = 14
 
-    def __init__(self, randint: int, speed: float):
+    def __init__(self, randint: int, speed: float, health: int):
         super().__init__(randint, speed, self.__FRAME_WIDTH,
                          self.__FRAME_HEIGHT, self.__SHADOW_WIDTH,
                          self.__delta_point_y, self.__delta_rect,
                          self.__delta_sha, animation('enemy', 'left', 6, 6),
-                         animation('enemy', 'right', 6, 6))
+                         animation('enemy', 'right', 6, 6), health)
 
 
 class Archar(Servant):
@@ -397,14 +429,14 @@ class Archar(Servant):
     __timer = 0
     __interval = 300
 
-    def __init__(self, randint: int, speed: float):
+    def __init__(self, randint: int, speed: float, health: int):
 
         super(Archar, self).__init__(randint, speed, self.__FRAME_WIDTH,
                                      self.__FRAME_HEIGHT, self.__SHADOW_WIDTH,
                                      self.__delta_point_y, self.__delta_rect,
                                      self.__delta_sha,
                                      animation('bee', 'left', 4, 4),
-                                     animation('bee', 'right', 4, 4))
+                                     animation('bee', 'right', 4, 4), health)
 
         self.rect = pg.Rect(self.pos_x + self.__delta_rect, self.pos_y,
                             self.FRAME_WIDTH - self.__delta_rect * 2,
@@ -515,7 +547,7 @@ class Archar(Servant):
         self.try_genetare_bullet(player)
         if self.CheckPlayerCollision(player):
             player.hurt()
-            self.hurt()
+            self.kill()
         if not self.CheckAlive():
             self.kill()
 
@@ -578,8 +610,7 @@ class Bullet(pg.sprite.Sprite):
 
     def CheckPlayerCollision(self, player: player):
         if pg.sprite.collide_circle_ratio(0.70)(self, player):
-            if not debug:
-                player.hurt()
+            player.hurt()
             if debug:
                 print('hit')
             self.kill()
@@ -602,30 +633,26 @@ class Bullet(pg.sprite.Sprite):
         self.draw()
 
 
-timer = 0
-interval = 300
+enemy_generate_timer = 0
+enemy_generete_interval = 300
 
 
 def TryGenerateEnemy():
 
-    global timer, interval
-    timer = (timer + 1) % interval
-    if timer == 0:
+    global enemy_generate_timer, enemy_generete_interval
+    enemy_generate_timer = (enemy_generate_timer + 1) % enemy_generete_interval
+    if enemy_generate_timer == 0:
         rand = rd.randint(0, 1)
         if rand:
-            g_archar.add(Archar(rd.randint(0, 2000), 0.1))
+            g_archar.add(Archar(rd.randint(0, 2000), 0.1, 1))
         else:
-            g_rider.add(Rider(rd.randint(0, 2000), rd.uniform(1, 2)))
-        interval = rd.randint(200, 500)
+            g_rider.add(Rider(rd.randint(0, 2000), rd.uniform(1, 2), 2))
+        enemy_generete_interval = rd.randint(200, 500)
 
 
 ''''''
-# g_rider.add(Rider(rd.randint(0, 2000), rd.uniform(1, 2)))
 
-g_archar.add(Archar(rd.randint(0, 2000), 0.05))
-# for _ in range(3):
-#     k = Rider(_ * 100, _ * 100, _)
-#     g.add(k)
+g_archar.add(Archar(rd.randint(0, 2000), 0.05, 2))
 p = player()
 ''''''
 done = False
@@ -645,7 +672,7 @@ while not done:
             if event.key == pg.K_ESCAPE:
                 done = True
             if event.key == pg.K_e and debug:
-                timer = interval - 1
+                enemy_generate_timer = enemy_generete_interval - 1
                 pass
 
     TryGenerateEnemy()
@@ -664,8 +691,9 @@ while not done:
                                  (255, 255, 255))
         txt_bullet = font.render(f'bullet:{len(l_bullet)}', True,
                                  (255, 255, 255))
-        txt_timer = font.render(f'timer:{timer}', True, (255, 255, 255))
-        txt_interval = font.render(f'interval:{interval}', True,
+        txt_timer = font.render(f'timer:{enemy_generate_timer}', True,
+                                (255, 255, 255))
+        txt_interval = font.render(f'interval:{enemy_generete_interval}', True,
                                    (255, 255, 255))
         screen.blit(txt_rider, (0, 700))
         screen.blit(txt_archar, (60, 700))
