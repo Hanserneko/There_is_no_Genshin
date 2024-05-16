@@ -1,12 +1,11 @@
 import pygame as pg
-import time
 import random as rd
-import math
+from math import sqrt
 import os
 
 pg.init()
 
-debug = 0
+debug = 1
 '''重构时注意release版本的路径索引器，release版需要删掉quit()函数'''
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
@@ -17,11 +16,6 @@ FPS = 60
 screen = pg.display.set_mode(size)
 pg.display.set_caption('Demo')
 
-bg_image = pg.image.load(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 r'img\background.png')).convert()
-# bg_image = pg.image.load('img\\background.png').convert()
-
 clock = pg.time.Clock()
 
 g_rider = pg.sprite.Group()
@@ -30,7 +24,7 @@ g_bullet = pg.sprite.Group()
 
 # jetbrainsmono
 # consolas
-font = pg.font.SysFont('jetbrainsmono', 10)
+font = pg.font.SysFont('consolas', 10)
 
 
 class animation:
@@ -84,8 +78,8 @@ class player(pg.sprite.Sprite):
         self.FRAME_HEIGHT = 74
         self.__SHADOW_WIDTH = 32
 
-        self.pos_x = 640
-        self.pos_y = 360
+        self.pos_x = 640 - self.FRAME_WIDTH / 2
+        self.pos_y = 360 - self.FRAME_HEIGHT / 2 - 15
         self.pos_point_x = self.FRAME_WIDTH / 2 + self.pos_x
         self.pos_point_y = self.FRAME_HEIGHT / 2 + self.pos_y + 15
 
@@ -109,7 +103,7 @@ class player(pg.sprite.Sprite):
         self.outter_rect = pg.Rect(self.pos_x, self.pos_y, self.FRAME_WIDTH,
                                    self.FRAME_HEIGHT)
         self.__alive = True
-
+        self.health = 3
         self.__txt_speed = font.render(f'{self._speed:.2f}', True,
                                        (255, 255, 255))
 
@@ -130,21 +124,21 @@ class player(pg.sprite.Sprite):
 
         if event.type == pg.KEYUP:
             if event.key == pg.K_w or event.key == pg.K_UP:
-                p.__up = False
+                self.__up = False
             if event.key == pg.K_s or event.key == pg.K_DOWN:
-                p.__down = False
+                self.__down = False
             if event.key == pg.K_a or event.key == pg.K_LEFT:
-                p.__left = False
+                self.__left = False
             if event.key == pg.K_d or event.key == pg.K_RIGHT:
-                p.__right = False
+                self.__right = False
             if event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT:
                 self._speed = 4
 
     def move(self):
         self.__dir_x = self.__right - self.__left
         self.__dir_y = self.__down - self.__up
-        self.__len_dir = math.sqrt(self.__dir_x * self.__dir_x +
-                                   self.__dir_y * self.__dir_y)
+        self.__len_dir = sqrt(self.__dir_x * self.__dir_x +
+                              self.__dir_y * self.__dir_y)
 
         if self.__len_dir != 0:
             self.__normalized_x = self.__dir_x / self.__len_dir
@@ -195,8 +189,8 @@ class player(pg.sprite.Sprite):
             pg.draw.circle(screen, (255, 0, 0),
                            (self.pos_point_x, self.pos_point_y), 4, 2)
         else:
-            pg.draw.circle(screen, (0, 0, 139),
-                           (self.pos_point_x, self.pos_point_y), 4, 2)
+            pg.draw.circle(screen, (0, 191, 255),
+                           (self.pos_point_x, self.pos_point_y), 4, 4)
         if not self.__timer == 0:
             self.draw_timer()
         pg.draw.circle(screen, self.aim_point_color, (
@@ -257,8 +251,10 @@ class player(pg.sprite.Sprite):
         self.draw()
 
     def CheckAlive(self):
-        if not debug:
-            return not self.__alive
+        if debug:
+            return 1
+        else:
+            return self.__alive
 
     def hurt(self):
         if self.health > 0 and self.hurt_timer == 0:
@@ -332,8 +328,8 @@ class Servant(pg.sprite.Sprite):
 
         self.__dir_x = self.p_pos_x - self.pos_point_x
         self.__dir_y = self.p_pos_y - self.pos_point_y
-        self.__len_dir = math.sqrt(self.__dir_x * self.__dir_x +
-                                   self.__dir_y * self.__dir_y)
+        self.__len_dir = sqrt(self.__dir_x * self.__dir_x +
+                              self.__dir_y * self.__dir_y)
 
         if self.__len_dir != 0:
             self.__normalized_x = self.__dir_x / self.__len_dir
@@ -467,8 +463,8 @@ class Archar(Servant):
 
         self.__dir_x = self.p_pos_x - self.pos_point_x
         self.__dir_y = self.p_pos_y - self.pos_point_y
-        self.__len_dir = math.sqrt(self.__dir_x * self.__dir_x +
-                                   self.__dir_y * self.__dir_y)
+        self.__len_dir = sqrt(self.__dir_x * self.__dir_x +
+                              self.__dir_y * self.__dir_y)
 
         if self.__len_dir != 0:
             self.__normalized_x = self.__dir_x / self.__len_dir
@@ -522,8 +518,8 @@ class Archar(Servant):
         self.__dir_pos_x = player.pos_point_x - (self.pos_x + self.__delta_x)
         self.__dir_pos_y = player.pos_point_y - (self.pos_y +
                                                  self.FRAME_HEIGHT)
-        self.__len_dir = math.sqrt(self.__dir_pos_x * self.__dir_pos_x +
-                                   self.__dir_pos_y * self.__dir_pos_y)
+        self.__len_dir = sqrt(self.__dir_pos_x * self.__dir_pos_x +
+                              self.__dir_pos_y * self.__dir_pos_y)
 
         if self.__len_dir != 0:
             self.__b_dir_x = self.__dir_pos_x / self.__len_dir
@@ -531,7 +527,7 @@ class Archar(Servant):
 
         return Bullet(self.pos_x + self.__delta_x,
                       self.pos_y + self.FRAME_HEIGHT, self.__b_dir_x,
-                      self.__b_dir_y, 1, 0)
+                      self.__b_dir_y, 2, 0)
 
     def try_genetare_bullet(self, player: player):
         self.__timer = (self.__timer + 1) % self.__interval
@@ -633,56 +629,87 @@ class Bullet(pg.sprite.Sprite):
         self.draw()
 
 
-enemy_generate_timer = 0
-enemy_generete_interval = 300
+class game:
 
+    bg_image = pg.image.load(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     r'img\background.png')).convert()
+    # bg_image = pg.image.load('img\\background.png').convert()
 
-def TryGenerateEnemy():
+    guide_image = pg.image.load(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     r'img\wasd.png')).convert_alpha()
+    # guide_image = pg.image.load('img\\guide.png').convert_alpha()
+    enemy_generate_timer = 0
+    enemy_generete_interval = 300
 
-    global enemy_generate_timer, enemy_generete_interval
-    enemy_generate_timer = (enemy_generate_timer + 1) % enemy_generete_interval
-    if enemy_generate_timer == 0:
-        rand = rd.randint(0, 1)
-        if rand:
-            g_archar.add(Archar(rd.randint(0, 2000), 0.1, 1))
-        else:
-            g_rider.add(Rider(rd.randint(0, 2000), rd.uniform(1, 2), 2))
-        enemy_generete_interval = rd.randint(200, 500)
+    def __init__(self, mode: int):
+        self.mode = mode
+        self.HP = []
+        self.HP_img = pg.image.load(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'img\\HP.png')).convert_alpha()
+        # self.HP_img = pg.image.load('img\\HP.png')
+        for i in range(2):
 
+            img = 'img\\' + 'HP_' + f'{i}' + '.png'
+            self.HP.append(
+                pg.image.load(
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 img)).convert_alpha())
+            # self.HP.append(pg.image.load(img))
+        self.p = player()
 
-''''''
+    def get_event(self, event: pg.event.Event):
+        self.p.get_event(event)
 
-g_archar.add(Archar(rd.randint(0, 2000), 0.05, 2))
-p = player()
-''''''
-done = False
+    def TryGenerateEnemy(self):
 
-while not done:
+        self.enemy_generate_timer = (self.enemy_generate_timer +
+                                     1) % self.enemy_generete_interval
+        enemy_count = len(g_archar.sprites() + g_rider.sprites())
+        if self.enemy_generate_timer == 0 and enemy_count <= 15:
+            if self.mode == 0:
+                rand = rd.randint(0, 1)
+                if rand:
+                    g_archar.add(Archar(rd.randint(0, 2000), 0.1, 1))
+                else:
+                    g_rider.add(Rider(rd.randint(0, 2000), rd.uniform(1, 2),
+                                      2))
+            elif self.mode == 1:
+                g_archar.add(Archar(rd.randint(0, 2000), 0, 1))
+            self.enemy_generete_interval = rd.randint(200, 500)
 
-    done = p.CheckAlive()
+    def draw_bg(self):
+        screen.blit(self.bg_image, (0, 0))
 
-    screen.blit(bg_image, (0, 0))
+    def draw_ui(self, player: player):
+        screen.blit(self.HP_img, (0, 0))
 
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            pg.quit()
-            quit()
-        p.get_event(event)
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
-                done = True
-            if event.key == pg.K_e and debug:
-                enemy_generate_timer = enemy_generete_interval - 1
-                pass
+        screen.blit(self.guide_image, (WINDOW_WIDTH - 301, 1))
+        for i in range(3):
+            screen.blit(self.HP[0], (60 + i * 50, 0))
+        for i in range(player.health):
+            screen.blit(self.HP[1], (60 + i * 50, 0))
 
-    TryGenerateEnemy()
-    g_rider.update(p)
-    g_archar.update(p)
+    def check_player_in_cir(self):
+        mid_x = WINDOW_WIDTH / 2
+        mid_y = WINDOW_HEIGHT / 2
+        pg.draw.circle(screen, (255, 255, 255), (mid_x, mid_y), 200, 2)
 
-    p.update()
+        pl_x = self.p.pos_point_x - mid_x
+        pl_y = self.p.pos_point_y - mid_y
+        pl_len = sqrt(pl_x * pl_x + pl_y * pl_y)
+        if pl_len > 200:
+            self.p.pos_x = mid_x - self.p.FRAME_WIDTH / 2
+            self.p.pos_y = mid_y - self.p.FRAME_HEIGHT / 2 - 15
+            self.p.pos_point_x = mid_x
+            self.p.pos_point_y = mid_y
+            self.p.rect = pg.Rect(self.p.pos_point_x - 4,
+                                  self.p.pos_point_y - 4, 8, 8)
+            self.p.hurt()
 
-    g_bullet.update(p)
-    if debug:
+    def debug(self):
         l_rider = g_rider.sprites()
         l_archar = g_archar.sprites()
         l_bullet = g_bullet.sprites()
@@ -691,15 +718,92 @@ while not done:
                                  (255, 255, 255))
         txt_bullet = font.render(f'bullet:{len(l_bullet)}', True,
                                  (255, 255, 255))
-        txt_timer = font.render(f'timer:{enemy_generate_timer}', True,
+        txt_timer = font.render(f'timer:{self.enemy_generate_timer}', True,
                                 (255, 255, 255))
-        txt_interval = font.render(f'interval:{enemy_generete_interval}', True,
-                                   (255, 255, 255))
+        txt_interval = font.render(f'interval:{self.enemy_generete_interval}',
+                                   True, (255, 255, 255))
         screen.blit(txt_rider, (0, 700))
         screen.blit(txt_archar, (60, 700))
         screen.blit(txt_bullet, (120, 700))
         screen.blit(txt_interval, (0, 0))
         screen.blit(txt_timer, (100, 0))
+
+    def update_game(self):
+        self.draw_bg()
+        self.TryGenerateEnemy()
+        g.draw_ui(self.p)
+        g_rider.update(self.p)
+        g_archar.update(self.p)
+        if self.mode == 1:
+            self.check_player_in_cir()
+        self.p.update()
+
+        g_bullet.update(self.p)
+        if debug:
+            self.debug()
+
+
+class menu:
+    menu_img = pg.image.load(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     'img\\background.png')).convert()
+
+    # bg_image = pg.image.load('img\\background.png').convert()
+    def init(self):
+
+        pass
+
+    def update_menu(self):
+        screen.blit(self.menu_img, (0, 0))
+
+    def generate_new_game(self):
+        return game(1)
+
+    pass
+
+
+def empty_group():
+    g_archar.empty()
+    g_bullet.empty()
+    g_rider.empty()
+
+
+''''''
+main_menu = menu()
+''''''
+main_loop = True
+in_game = False
+
+while main_loop:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            pg.quit()
+            quit()
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                main_loop = False
+                in_game = False
+            if event.key == pg.K_p:
+                in_game = True
+    if in_game:
+        g = main_menu.generate_new_game()
+    main_menu.update_menu()
+    while in_game:
+        in_game = g.p.CheckAlive()
+        for event in pg.event.get():
+            g.get_event(event)
+            if event.type == pg.QUIT:
+                pg.quit()
+                quit()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    in_game = False
+        g.update_game()
+        pg.display.update()
+        if not in_game:
+            del g
+            empty_group()
+        clock.tick(FPS)
     pg.display.update()
     clock.tick(FPS)
 
