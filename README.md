@@ -1,1 +1,1 @@
-# new_game
+# There is no Genshin
