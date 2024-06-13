@@ -5,7 +5,7 @@ import os
 
 pg.init()
 
-debug = 1
+debug = 0
 '''重构时注意release版本的路径索引器，release版需要删掉quit()函数'''
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
@@ -14,7 +14,9 @@ size = (WINDOW_WIDTH, WINDOW_HEIGHT)
 FPS = 60
 
 screen = pg.display.set_mode(size)
-pg.display.set_caption('Demo')
+pg.display.set_caption('Why you play Genshin?')
+icon = pg.image.load('img\\icon.ico').convert_alpha()
+pg.display.set_icon(icon)
 
 clock = pg.time.Clock()
 
@@ -34,20 +36,19 @@ class animation:
 
         for i in range(len_frame):
             img = 'img\\' + img_name + '_' + img_dir + '_' + f'{i}' + '.png'
-            self.FRAME.append(
-                pg.image.load(
-                    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 img)).convert_alpha())
-            # self.FRAME.append(pg.image.load(img))
+            self.FRAME.append(pg.image.load(img).convert_alpha())
 
         self.__interval_ms = interval
         self.__timer = 0
         self.__idx_frame = 0
         self.__len_frame = len_frame
+        self.stop = False
 
-    def play(self, pos_x, pos_y, delta):
+    def play(self, pos_x, pos_y, delta, one_time: bool = False):
         self.__timer += delta
         if self.__timer >= self.__interval_ms:
+            if one_time and self.__idx_frame + 1 == self.__len_frame:
+                self.stop = True
             self.__idx_frame = (self.__idx_frame + 1) % self.__len_frame
             self.__timer = 0
 
@@ -71,7 +72,9 @@ class player(pg.sprite.Sprite):
     txt_health = font.render(f'{health}', True, (255, 255, 255))
     txt_hurt_timer = font.render(f'{hurt_timer}', True, (255, 255, 255))
 
-    def __init__(self):
+    hit_sound = pg.mixer.Sound('img\\hit.ogg')
+
+    def __init__(self, able_to_shoot: bool):
         super(player, self).__init__()
 
         self.FRAME_WIDTH = 52
@@ -92,10 +95,7 @@ class player(pg.sprite.Sprite):
         self.anim_L = animation('paimon', 'left', 6, 6)
         self.anim_R = animation('paimon', 'right', 6, 6)
         self.anim_SHADOW = pg.image.load(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'img/shadow_player.png')).convert_alpha()
-        # self.anim_SHADOW = pg.image.load(
-        #     'img\\shadow_player.png').convert_alpha()
+            'img\\shadow_player.png').convert_alpha()
 
         self.__facing_left = False
 
@@ -106,6 +106,8 @@ class player(pg.sprite.Sprite):
         self.health = 3
         self.__txt_speed = font.render(f'{self._speed:.2f}', True,
                                        (255, 255, 255))
+
+        self.can_shoot = able_to_shoot
 
     def get_event(self, event):
         if event.type == pg.KEYDOWN:
@@ -119,7 +121,7 @@ class player(pg.sprite.Sprite):
                 self.__right = True
             if event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT:
                 self._speed = 2
-            if event.key == pg.K_SPACE:
+            if event.key == pg.K_SPACE and self.can_shoot:
                 self.try_generate_bullet()
 
         if event.type == pg.KEYUP:
@@ -262,6 +264,7 @@ class player(pg.sprite.Sprite):
                 print('hurt')
             self.health -= 1
             self.hurt_timer = self.hurt_interval
+            self.hit_sound.play()
 
         self.txt_health = font.render(f'{self.health}', True, (255, 255, 255))
         if self.health == 0:
@@ -306,11 +309,9 @@ class Servant(pg.sprite.Sprite):
         # self.anim_R = animation(name, 'right', len_frame, interval)
         self.anim_L = anim_L
         self.anim_R = anim_R
+
         self.anim_SHADOW = pg.image.load(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'img/shadow_enemy.png')).convert_alpha()
-        # self.anim_SHADOW = pg.image.load(
-        #     'img\\shadow_enemy.png').convert_alpha()
+            'img\\shadow_enemy.png').convert_alpha()
 
         self.rect = pg.Rect(self.pos_x + self.__delta_rect, self.pos_y,
                             self.FRAME_WIDTH - self.__delta_rect * 2,
@@ -631,34 +632,35 @@ class Bullet(pg.sprite.Sprite):
 
 class game:
 
-    bg_image = pg.image.load(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     r'img\background.png')).convert()
-    # bg_image = pg.image.load('img\\background.png').convert()
+    bg_image = pg.image.load('img\\background.png').convert()
 
-    guide_image = pg.image.load(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     r'img\wasd.png')).convert_alpha()
-    # guide_image = pg.image.load('img\\guide.png').convert_alpha()
+    guide_image = pg.image.load('img\\guide.png').convert_alpha()
+
+    battle_music = pg.mixer.Sound('img\\battle.ogg')
+
     enemy_generate_timer = 0
     enemy_generete_interval = 300
 
-    def __init__(self, mode: int):
+    def __init__(self, mode: int, difficult: int = 0):
         self.mode = mode
+        self.difficult = difficult
+        if difficult > 0:
+            self.can_shoot = 0
+        else:
+            self.can_shoot = 1
         self.HP = []
-        self.HP_img = pg.image.load(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'img\\HP.png')).convert_alpha()
-        # self.HP_img = pg.image.load('img\\HP.png')
+
+        self.HP_img = pg.image.load('img\\HP.png').convert_alpha()
         for i in range(2):
 
             img = 'img\\' + 'HP_' + f'{i}' + '.png'
-            self.HP.append(
-                pg.image.load(
-                    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 img)).convert_alpha())
-            # self.HP.append(pg.image.load(img))
-        self.p = player()
+
+            self.HP.append(pg.image.load(img).convert_alpha())
+        self.p = player(self.can_shoot)
+        self.battle_music.play(-1)
+
+    def __del__(self):
+        self.battle_music.stop()
 
     def get_event(self, event: pg.event.Event):
         self.p.get_event(event)
@@ -668,7 +670,7 @@ class game:
         self.enemy_generate_timer = (self.enemy_generate_timer +
                                      1) % self.enemy_generete_interval
         enemy_count = len(g_archar.sprites() + g_rider.sprites())
-        if self.enemy_generate_timer == 0 and enemy_count <= 15:
+        if self.enemy_generate_timer == 0 and enemy_count < 20:
             if self.mode == 0:
                 rand = rd.randint(0, 1)
                 if rand:
@@ -678,7 +680,7 @@ class game:
                                       2))
             elif self.mode == 1:
                 g_archar.add(Archar(rd.randint(0, 2000), 0, 1))
-            self.enemy_generete_interval = rd.randint(200, 500)
+            self.enemy_generete_interval = rd.randint(150, 450)
 
     def draw_bg(self):
         screen.blit(self.bg_image, (0, 0))
@@ -695,12 +697,16 @@ class game:
     def check_player_in_cir(self):
         mid_x = WINDOW_WIDTH / 2
         mid_y = WINDOW_HEIGHT / 2
-        pg.draw.circle(screen, (255, 255, 255), (mid_x, mid_y), 200, 2)
+        if self.difficult <= 1:
+            radius = 200
+        else:
+            radius = 100
+        pg.draw.circle(screen, (255, 255, 255), (mid_x, mid_y), radius, 2)
 
         pl_x = self.p.pos_point_x - mid_x
         pl_y = self.p.pos_point_y - mid_y
         pl_len = sqrt(pl_x * pl_x + pl_y * pl_y)
-        if pl_len > 200:
+        if pl_len > radius:
             self.p.pos_x = mid_x - self.p.FRAME_WIDTH / 2
             self.p.pos_y = mid_y - self.p.FRAME_HEIGHT / 2 - 15
             self.p.pos_point_x = mid_x
@@ -743,21 +749,276 @@ class game:
             self.debug()
 
 
-class menu:
-    menu_img = pg.image.load(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     'img\\background.png')).convert()
+class ScoreBoard:
+    score = 0
+    tick = 0
 
-    # bg_image = pg.image.load('img\\background.png').convert()
+    def __init__(self):
+        self.score = 0
+        self.tick = 0
+        pass
+
+    def time_add(self):
+        self.tick += 1
+        if self.tick == FPS:
+            self.add_score()
+            self.tick = 0
+
+    def add_score(self, add_type: int = 0):
+        score_list = [1, 10, 20]
+        self.score += score_list[add_type]
+
+    def show_score(self):
+        pass
+
+
+class Button:
+
+    mouse_pos_x = 0
+    mouse_pos_y = 0
+    left_pressed = 0
+
+    start_idx = 0
+    quit_idx = 0
+    sur_idx = 0
+    ez_idx = 0
+    normal_idx = 0
+    hard_idx = 0
+
+    level = 0
+    start = False
+    end = False
+
+    start_img = []
+    quit_img = []
+    sur_img = []
+    ez_img = []
+    normal_img = []
+    hard_img = []
+
+    game_mode = 0
+    game_dif = 0
+    for i in range(1, 4):
+        start_img.append(pg.image.load(f'img\\play0{i}.png').convert_alpha())
+        quit_img.append(pg.image.load(f'img\\back0{i}.png').convert_alpha())
+        sur_img.append(pg.image.load(f'img\\sur0{i}.png').convert_alpha())
+
+        ez_img.append(pg.image.load(f'img\\ez0{i}.png').convert_alpha())
+
+        normal_img.append(pg.image.load(f'img\\nm0{i}.png').convert_alpha())
+        hard_img.append(pg.image.load(f'img\\hd0{i}.png').convert_alpha())
+
+    def __init__(self):
+        pass
+
+    def get_mouse(self):
+        (self.mouse_pos_x, self.mouse_pos_y) = pg.mouse.get_pos()
+        self.left_pressed = pg.mouse.get_pressed()[0]
+
+    def draw_button(self, level):
+        if level == 0:
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 500 <= self.mouse_pos_y <= 550:
+                if self.left_pressed:
+                    self.start_idx = 2
+                    self.level = 1
+                else:
+                    self.start_idx = 1
+            else:
+                self.start_idx = 0
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 600 <= self.mouse_pos_y <= 650:
+                if self.left_pressed:
+                    self.quit_idx = 2
+                    self.end = True
+                else:
+                    self.quit_idx = 1
+            else:
+                self.quit_idx = 0
+            screen.blit(self.start_img[self.start_idx],
+                        (WINDOW_WIDTH / 2 - 69, 500))
+            screen.blit(self.quit_img[self.quit_idx],
+                        (WINDOW_WIDTH / 2 - 69, 600))
+            pass
+        elif level == 1:
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 450 <= self.mouse_pos_y <= 500:
+                if self.left_pressed:
+                    self.normal_idx = 2
+                    self.game_mode = 0
+                    self.game_dif = 0
+                    self.start = True
+                else:
+                    self.normal_idx = 1
+            else:
+                self.normal_idx = 0
+
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 550 <= self.mouse_pos_y <= 600:
+                if self.left_pressed:
+                    self.sur_idx = 2
+                    self.level = 2
+                else:
+                    self.sur_idx = 1
+            else:
+                self.sur_idx = 0
+
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 650 <= self.mouse_pos_y <= 700:
+                if self.left_pressed:
+                    self.quit_idx = 2
+                    self.level = 0
+                else:
+                    self.quit_idx = 1
+            else:
+                self.quit_idx = 0
+
+            screen.blit(self.normal_img[self.normal_idx],
+                        (WINDOW_WIDTH / 2 - 69, 450))
+            screen.blit(self.sur_img[self.sur_idx],
+                        (WINDOW_WIDTH / 2 - 69, 550))
+            screen.blit(self.quit_img[self.quit_idx],
+                        (WINDOW_WIDTH / 2 - 69, 650))
+            pass
+
+        elif level == 2:
+
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 600 <= self.mouse_pos_y <= 650:
+                if self.left_pressed:
+                    self.quit_idx = 2
+                    self.level = 1
+                else:
+                    self.quit_idx = 1
+            else:
+                self.quit_idx = 0
+
+            if WINDOW_WIDTH / 2 - 69 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 and 500 <= self.mouse_pos_y <= 550:
+                if self.left_pressed:
+                    self.normal_idx = 2
+                    self.game_mode = 1
+                    self.game_dif = 1
+                    self.start = True
+                else:
+                    self.normal_idx = 1
+            else:
+                self.normal_idx = 0
+
+            if WINDOW_WIDTH / 2 - 69 - 200 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 - 200 and 500 <= self.mouse_pos_y <= 550:
+                if self.left_pressed:
+                    self.ez_idx = 2
+                    self.game_mode = 1
+                    self.game_dif = 0
+                    self.start = True
+                else:
+                    self.ez_idx = 1
+            else:
+                self.ez_idx = 0
+
+            if WINDOW_WIDTH / 2 - 69 + 200 <= self.mouse_pos_x <= WINDOW_WIDTH / 2 + 69 + 200 and 500 <= self.mouse_pos_y <= 550:
+                if self.left_pressed:
+                    self.hard_idx = 2
+                    self.game_mode = 1
+                    self.game_dif = 2
+                    self.start = True
+                else:
+                    self.hard_idx = 1
+            else:
+                self.hard_idx = 0
+            screen.blit(self.ez_img[self.ez_idx],
+                        (WINDOW_WIDTH / 2 - 69 - 200, 500))
+            screen.blit(self.normal_img[self.normal_idx],
+                        (WINDOW_WIDTH / 2 - 69, 500))
+            screen.blit(self.hard_img[self.hard_idx],
+                        (WINDOW_WIDTH / 2 - 69 + 200, 500))
+            screen.blit(self.quit_img[self.quit_idx],
+                        (WINDOW_WIDTH / 2 - 69, 600))
+            pass
+
+    def get_level(self):
+        return self.level
+
+    def start_game(self):
+        if self.start:
+            self.start = False
+            return True
+        else:
+            return False
+
+    def end_game(self):
+        return self.end
+
+    def update(self, level):
+        self.get_mouse()
+        self.draw_button(level)
+
+
+class menu:
+
+    menu_img = pg.image.load('img\\background.png').convert()
+
+    guide_image = pg.image.load('img\\guide.png').convert_alpha()
+
+    genshin_img = pg.image.load('img\\genshin.png').convert_alpha()
+
+    not_img = pg.image.load('img\\not_one.png').convert_alpha()
+
+    p3_img = pg.image.load('img\\p3.png').convert_alpha()
+
+    pimon = animation('paimon', 'left', 6, 6)
+    pimon_pos_x = WINDOW_WIDTH * 4 / 5
+    pimon_pos_y = WINDOW_HEIGHT / 2
+
+    pimon_SHADOW = pg.image.load('img\\shadow_player.png').convert_alpha()
+    enemy = animation('enemy', 'left', 6, 6)
+    enemy_pos_x = WINDOW_WIDTH * 4 / 5 + 100
+    enemy_pos_y = WINDOW_HEIGHT / 2 + 20
+
+    enemy_SHADOW = pg.image.load('img\\shadow_enemy.png').convert_alpha()
+
+    menu_level = 0
+
+    in_game = 0
+
     def init(self):
 
         pass
 
+    def move(self):
+        self.pimon_pos_x -= 2
+        self.enemy_pos_x -= 2
+        if self.pimon_pos_x < -100:
+
+            self.pimon_pos_x = WINDOW_WIDTH
+        if self.enemy_pos_x < -100:
+
+            self.enemy_pos_x = WINDOW_WIDTH
+
+    def draw(self):
+        self.pimon_pos_shadow_x = self.pimon_pos_x + (52 / 2 - 32 / 2)
+        self.pimon_pos_shadow_y = WINDOW_HEIGHT / 2 + 74 - 8
+        screen.blit(self.pimon_SHADOW,
+                    (self.pimon_pos_shadow_x, self.pimon_pos_shadow_y))
+
+        self.enemy_pos_shadow_x = self.enemy_pos_x + (74 / 2 - 48 / 2)
+        self.enemy_pos_shadow_y = self.enemy_pos_y + 54 - 14
+        screen.blit(self.enemy_SHADOW,
+                    (self.enemy_pos_shadow_x, self.enemy_pos_shadow_y))
+
+        self.pimon.play(self.pimon_pos_x, self.pimon_pos_y, 1)
+        self.enemy.play(self.enemy_pos_x, self.enemy_pos_y, 1)
+
     def update_menu(self):
         screen.blit(self.menu_img, (0, 0))
+        # screen.blit(self.guide_image, (WINDOW_WIDTH - 301, 1))
+        self.draw()
+        screen.blit(self.genshin_img, (WINDOW_WIDTH / 3, 100))
+        screen.blit(self.not_img, (WINDOW_WIDTH / 3, 100))
+        screen.blit(self.p3_img, (WINDOW_WIDTH - 130, WINDOW_HEIGHT - 114))
+        self.move()
 
-    def generate_new_game(self):
-        return game(1)
+    def generate_new_game(self, button: Button):
+        if button.game_mode == 0:
+            return game(0)
+        if button.game_mode == 1:
+            return game(1, button.game_dif)
+
+    def get_level(self):
+        pass
 
     pass
 
@@ -768,12 +1029,29 @@ def empty_group():
     g_rider.empty()
 
 
-''''''
+'''主初始化'''
+genshin_video = animation('video\\video', 'defalt', 309, 1)
 main_menu = menu()
-''''''
+button = Button()
+pg.mixer.music.load('img\\opening.mp3')
 main_loop = True
 in_game = False
+running = True
+''''''
+'''开场动画'''
+while running:
+    for event in pg.event.get():
+        if event.type == pg.KEYDOWN:
+            running = False
+    genshin_video.play(0, 0, 1, True)
+    if genshin_video.stop == True:
+        running = False
+    pg.display.update()
+    clock.tick(FPS)
 
+del genshin_video
+''''''
+'''主循环'''
 while main_loop:
     for event in pg.event.get():
         if event.type == pg.QUIT:
@@ -785,10 +1063,28 @@ while main_loop:
                 in_game = False
             if event.key == pg.K_p:
                 in_game = True
-    if in_game:
-        g = main_menu.generate_new_game()
+
+    if not pg.mixer.music.get_busy():
+        pg.mixer.music.play(-1)
+
     main_menu.update_menu()
+    main_menu.menu_level = button.level
+    button.update(main_menu.menu_level)
+
+    if button.start_game():
+        main_menu.menu_level = 0
+        in_game = True
+
+    if button.end_game():
+        main_loop = False
+
+    if in_game:
+        g = main_menu.generate_new_game(button)
+        button.level = 0
+
     while in_game:
+        if pg.mixer.music.get_busy():
+            pg.mixer.music.stop()
         in_game = g.p.CheckAlive()
         for event in pg.event.get():
             g.get_event(event)
@@ -808,4 +1104,3 @@ while main_loop:
     clock.tick(FPS)
 
 pg.quit()
-quit()
