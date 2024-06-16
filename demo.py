@@ -1090,7 +1090,7 @@ while main_loop:
             g.get_event(event)
             if event.type == pg.QUIT:
                 pg.quit()
-                quit()
+
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
                     in_game = False
